@@ -696,6 +696,9 @@ void main() {
     s.conn.dispose();
     s.sync.dispose();
   });
+
+  test(
+    'switching the writer to a new session: a late frame from the OLD '
     "connection is dropped — it neither writes the new box nor appears in the "
     "new session's read projection (plan/32f session-switch bleed)",
     () async {
