@@ -656,8 +656,46 @@ void main() {
     s.sync.dispose();
   });
 
-  test(
-    'switching the writer to a new session: a late frame from the OLD '
+  test('plan/60 full-history batches accumulate until eos, then apply once',
+      () async {
+    final s = await setup();
+
+    // Pi answers session_sync(full: true) with several batches sharing one
+    // in_reply_to; only the last carries eos: true. Partial batches must NOT
+    // substitute the cache — only the combined history at eos.
+    s.ch.push(SessionHistory(
+      inReplyTo: 'full1',
+      sessionStartedAt: 42,
+      events: const [UserInputEvt(ts: 1, id: 'u1', text: 'hi')],
+      eos: false,
+    ));
+    await _settle();
+    expect(
+      messages(s.epk),
+      isEmpty,
+      reason: 'non-eos batch must not apply to the box yet',
+    );
+
+    s.ch.push(SessionHistory(
+      inReplyTo: 'full1',
+      sessionStartedAt: 42,
+      events: const [AgentMessageEvt(ts: 2, inReplyTo: 'a1', text: 'hello')],
+      eos: true,
+    ));
+    await _settle();
+
+    expect(messages(s.epk).map((r) => r.role), [
+      MsgRole.user,
+      MsgRole.assistant,
+    ]);
+    expect(
+      index(s.epk)?.sessionStartedAt,
+      DateTime.fromMillisecondsSinceEpoch(42),
+    );
+
+    s.conn.dispose();
+    s.sync.dispose();
+  });
     "connection is dropped — it neither writes the new box nor appears in the "
     "new session's read projection (plan/32f session-switch bleed)",
     () async {

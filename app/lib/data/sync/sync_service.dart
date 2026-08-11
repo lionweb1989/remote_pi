@@ -71,6 +71,14 @@ class SyncService extends Service {
   bool _pendingSyncRequest = false;
   Timer? _syncDebounce;
 
+  // Plan/60 — batch accumulation for full-history syncs. The Pi answers a
+  // `session_sync(full: true)` with multiple `session_history` batches
+  // (single `in_reply_to`, `eos: true` on the last). The mirror path
+  // substitutes the cache wholesale, so partial batches must NOT apply;
+  // we buffer per in_reply_to and apply once at eos.
+  final Map<String, List<SessionHistoryEvent>> _historyAccum = {};
+  final Map<String, int> _historyStartedAt = {};
+
   // Whether the active session's agent is currently producing a reply. Spans
   // the WHOLE turn (send/echo → agent_done), not just the token-streaming
   // window — restoring the old broad "working" signal. Mirrored into the
@@ -381,6 +389,15 @@ class SyncService extends Service {
     ch.send(SessionSync(id: _newId()));
   }
 
+  /// Plan/60 — pull the ENTIRE current session history in one shot (Pi
+  /// answers with size-bounded batches; see [_onSessionHistory]). Used by
+  /// the chat screen's "sync full history" action.
+  void requestFullHistory() {
+    final ch = _conn.channel;
+    if (ch == null || _activeEpk == null) return;
+    ch.send(SessionSync(id: _newId(), full: true));
+  }
+
   /// Plan/28 — `session_new` acked: wipe the active session's rows + index.
   Future<void> clearActiveSession() async {
     final epk = _activeEpk;
@@ -617,9 +634,9 @@ class SyncService extends Service {
           _conn.switchTo(peer);
         }
 
-      case SessionHistory():
+      case SessionHistory(:final inReplyTo, :final events, :final eos):
         // ignore: discarded_futures
-        _applyHistory(msg);
+        _onSessionHistory(inReplyTo, msg.sessionStartedAt, events, eos);
 
       case ErrorMessage(:final code, :final message):
         if (code.contains('unknown_peer')) {
@@ -684,6 +701,31 @@ class SyncService extends Service {
             tokensBefore: tokensBefore,
             ts: when,
           ),
+    );
+  }
+
+  /// Plan/60 — accumulate `session_history` batches for one `in_reply_to`
+  /// and apply the combined history exactly once at `eos`. Batches for a
+  /// single reply always carry the same `session_started_at`.
+  Future<void> _onSessionHistory(
+    String inReplyTo,
+    int sessionStartedAt,
+    List<SessionHistoryEvent> events,
+    bool eos,
+  ) async {
+    final acc = (_historyAccum[inReplyTo] ??= <SessionHistoryEvent>[])
+      ..addAll(events);
+    _historyStartedAt[inReplyTo] = sessionStartedAt;
+    if (!eos) return;
+    _historyAccum.remove(inReplyTo);
+    final startedAt = _historyStartedAt.remove(inReplyTo) ?? sessionStartedAt;
+    await _applyHistory(
+      SessionHistory(
+        inReplyTo: inReplyTo,
+        sessionStartedAt: startedAt,
+        events: List.unmodifiable(acc),
+        eos: true,
+      ),
     );
   }
 

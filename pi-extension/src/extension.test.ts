@@ -213,6 +213,7 @@ const {
   _onPeerDisconnect,
   routeClientMessage,
   _mapAgentMessagesToEvents,
+  _sendHistoryBatches,
   _setMessageBufferForTest,
   _setSessionStartedAtForTest,
   _hasPendingReconnect,
@@ -2674,6 +2675,56 @@ describe("tool visibility", () => {
     ])[0] as { error?: string };
     expect(histOk.result).toBe(ok?.inner.result);
     expect(histErr.error).toBe(err?.inner.error);
+  });
+
+  test("_sendHistoryBatches: splits large histories into eos-terminated batches", () => {
+    // ~100 events, each ~10KB JSON (image payloads, plan/30) → several
+    // batches under the 400KB target; last one must carry eos: true.
+    const events = Array.from({ length: 100 }, (_, i) => ({
+      type: "agent_message" as const,
+      ts: 1700000000000 + i,
+      id: `msg-${i}`,
+      text: "x".repeat(10_000),
+    }));
+    const sent: Array<Record<string, unknown>> = [];
+    const sender = { send: (m: Record<string, unknown>) => sent.push(m) };
+
+    _sendHistoryBatches(sender as never, "sync-1", events as never);
+
+    expect(sent.length).toBeGreaterThan(1);
+    const payloads = sent.map((m) => JSON.stringify(m).length);
+    for (const p of payloads) expect(p).toBeLessThan(450 * 1024);
+    for (const m of sent.slice(0, -1)) expect(m.eos).toBe(false);
+    expect(sent[sent.length - 1].eos).toBe(true);
+    const totalEvents = sent.reduce(
+      (n, m) => n + (m.events as unknown[]).length,
+      0,
+    );
+    expect(totalEvents).toBe(100);
+  });
+
+  test("_sendHistoryBatches: single batch when history is small", () => {
+    const events = Array.from({ length: 3 }, (_, i) => ({
+      type: "user_input" as const,
+      ts: 1700000000000 + i,
+      id: `u-${i}`,
+      text: "oi",
+    }));
+    const sent: Array<Record<string, unknown>> = [];
+    const sender = { send: (m: Record<string, unknown>) => sent.push(m) };
+
+    _sendHistoryBatches(sender as never, "sync-2", events as never);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].eos).toBe(true);
+    expect((sent[0].events as unknown[])).toHaveLength(3);
+  });
+
+  test("_sendHistoryBatches: empty history sends nothing", () => {
+    const sent: Array<Record<string, unknown>> = [];
+    const sender = { send: (m: Record<string, unknown>) => sent.push(m) };
+    _sendHistoryBatches(sender as never, "sync-3", [] as never);
+    expect(sent).toHaveLength(0);
   });
 
   test("tool_result unwraps the live { content:[…], details } wrapper (== re-sync)", async () => {

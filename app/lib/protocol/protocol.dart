@@ -574,13 +574,18 @@ class PairRequest extends ClientMessage {
 class SessionSync extends ClientMessage {
   final String id;
   final int? limit;
-  SessionSync({required this.id, this.limit});
+  /// Plan/60 — request the ENTIRE session history in one shot (Pi sends
+  /// all events in size-bounded batches, `eos` on the last). Default
+  /// (false) keeps the mirror semantics: last N events only.
+  final bool full;
+  SessionSync({required this.id, this.limit, this.full = false});
 
   @override
   Map<String, dynamic> toJson() => {
     'type': 'session_sync',
     'id': id,
     if (limit != null) 'limit': limit,
+    if (full) 'full': true,
   };
 }
 

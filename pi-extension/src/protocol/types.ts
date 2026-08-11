@@ -188,7 +188,7 @@ export type ClientMessage =
   | { type: "approve_tool"; id: string; tool_call_id: string; decision: "allow" | "deny" }
   | { type: "cancel"; id: string; target_id: string }
   | { type: "ping"; id: string }
-  | { type: "session_sync"; id: string; limit?: number }
+  | { type: "session_sync"; id: string; limit?: number; full?: boolean }
   // Plan/28 — Typed app actions on the paired Pi session. Each carries a
   // structured payload (no string parsing) and gets either `action_ok` or
   // `action_error` back. Visible side-effects (chat output, model change

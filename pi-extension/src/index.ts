@@ -4652,11 +4652,21 @@ function _handleSessionSync(
 
   // Mirror semantics: always return the last N events. App SUBSTITUTES its
   // local cache with this response — no delta/since_ts logic.
+  const allEvents = _mapAgentMessagesToEvents(_messageBuffer);
+
+  // Plan/60 — `full: true` pulls the ENTIRE session history in one shot,
+  // sent in size-bounded batches (the protocol documents `eos` for this;
+  // images from plan/30 can make single events large, so batch by JSON
+  // size, never by a hard event count alone).
+  if (msg.full) {
+    _sendHistoryBatches(sender, msg.id, allEvents);
+    return;
+  }
+
   const serverLimit = _getSyncLimit();
   const requested = msg.limit ?? serverLimit;
   const effectiveLimit = Math.min(requested, serverLimit);  // server clamps
 
-  const allEvents = _mapAgentMessagesToEvents(_messageBuffer);
   const slice = effectiveLimit > 0 ? allEvents.slice(-effectiveLimit) : [];
   const truncated = allEvents.length > effectiveLimit;
 
@@ -4711,6 +4721,42 @@ function _resetSessionForNew(inReplyTo: string): void {
     eos: true,
     truncated: false,
   });
+}
+
+/**
+ * Plan/60 — sends the full history as size-bounded `session_history`
+ * batches (single `in_reply_to`, `eos: true` on the final batch).
+ * Target ~400KB JSON per batch; a single event larger than the target
+ * still ships alone (never dropped).
+ */
+export function _sendHistoryBatches(
+  sender: PlainPeerChannel,
+  inReplyTo: string,
+  events: SessionHistoryEvent[],
+): void {
+  const TARGET_BYTES = 400 * 1024;
+  const startedAt = _sessionStartedAt ?? 0;
+  let start = 0;
+  while (start < events.length) {
+    let end = start + 1;
+    let size = JSON.stringify(events[start]).length;
+    while (
+      end < events.length &&
+      size + JSON.stringify(events[end]).length < TARGET_BYTES
+    ) {
+      size += JSON.stringify(events[end]).length;
+      end += 1;
+    }
+    sender.send({
+      type: "session_history",
+      in_reply_to: inReplyTo,
+      session_started_at: startedAt,
+      events: events.slice(start, end),
+      eos: end >= events.length,
+      truncated: false,
+    });
+    start = end;
+  }
 }
 
 type ToolArgs = Record<string, unknown>;

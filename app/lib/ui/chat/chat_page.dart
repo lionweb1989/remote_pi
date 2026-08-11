@@ -245,6 +245,31 @@ class ChatPage extends StatelessWidget {
           // nav hints, so the bar is stable from frame 1. The dialog needs the
           // loaded PeerRecord; we read it at tap time (loaded within ms of
           // mount for the connection) and no-op in the unlikely pre-load tap.
+          // Plan/60 — one-shot full history sync: pulls the ENTIRE session
+          // history from the Pi (size-bounded batches, applied at eos).
+          IconButton(
+            icon: Icon(LucideIcons.refreshCw, size: 18, color: colors.muted2),
+            tooltip: 'Sync full history',
+            onPressed: () {
+              vm.requestFullHistory();
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Syncing full history…',
+                      style: TextStyle(
+                        fontFamily: kMonoFamily,
+                        fontSize: 13,
+                        color: colors.text,
+                      ),
+                    ),
+                    duration: const Duration(seconds: 2),
+                    backgroundColor: colors.bg,
+                  ),
+                );
+            },
+          ),
           IconButton(
             icon: Icon(LucideIcons.info, size: 18, color: colors.muted2),
             tooltip: 'Session info',

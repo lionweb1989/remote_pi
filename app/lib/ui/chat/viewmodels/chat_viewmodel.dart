@@ -137,6 +137,11 @@ class ChatViewModel extends ViewModel<ChatState> {
     unawaited(_sync.clearQueuedMessages());
   }
 
+  /// Plan/60 — pull the FULL session history from the Pi in one shot.
+  void requestFullHistory() {
+    _sync.requestFullHistory();
+  }
+
   // ---------------------------------------------------------------------------
 
   Future<void> _bootstrap() async {
