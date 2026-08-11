@@ -1,10 +1,11 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   isValidRelayUrl,
   isWebSocketScheme,
   toWebSocketUrl,
   toHttpUrl,
   kDefaultRelayUrl,
+  isRelayTlsInsecure,
 } from "./config.js";
 
 describe("isValidRelayUrl (strict http(s):// only)", () => {
@@ -92,5 +93,25 @@ describe("kDefaultRelayUrl", () => {
   test("is canonical https:// form (no scheme conversion needed at resolve time)", () => {
     expect(kDefaultRelayUrl).toMatch(/^https:\/\//);
     expect(kDefaultRelayUrl).toBe("https://relay-rp1.jacobmoura.work");
+  });
+});
+
+describe("isRelayTlsInsecure (env > config, default strict)", () => {
+  test("env REMOTE_PI_TLS_INSECURE=1 → true", () => {
+    vi.stubEnv("REMOTE_PI_TLS_INSECURE", "1");
+    expect(isRelayTlsInsecure()).toBe(true);
+    vi.unstubAllEnvs();
+  });
+
+  test("env REMOTE_PI_TLS_INSECURE=0 → false", () => {
+    vi.stubEnv("REMOTE_PI_TLS_INSECURE", "0");
+    expect(isRelayTlsInsecure()).toBe(false);
+    vi.unstubAllEnvs();
+  });
+
+  test("unset env falls back to config (boolean either way)", () => {
+    vi.stubEnv("REMOTE_PI_TLS_INSECURE", undefined);
+    expect(typeof isRelayTlsInsecure()).toBe("boolean");
+    vi.unstubAllEnvs();
   });
 });

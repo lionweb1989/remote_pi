@@ -2,8 +2,10 @@ import 'dart:convert';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 
+import '../transport/relay_tls.dart';
 import 'mesh_envelope.dart';
 
 /// Outcome of `MeshClient.fetch()`.
@@ -113,7 +115,13 @@ class MeshClient {
       // built-in JSON parser into raising a DioException. We jsonDecode
       // manually on the success branch.
       responseType: ResponseType.plain,
-    ));
+    ))
+      // Mesh REST rides the same self-hosted relay TLS (plan 59): the
+      // pinned-fingerprint client accepts the self-signed IP cert — and
+      // only that cert — for the pinned host.
+      ..httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: () => relayPinnedHttpClient(),
+      );
   }
 
   /// Decode a response body string as JSON when present. Returns null

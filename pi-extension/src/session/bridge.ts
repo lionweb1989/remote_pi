@@ -8,6 +8,7 @@ import {
   discoverTopology,
   type MeshTopologySnapshot,
 } from "../mesh/siblings.js";
+import { isRelayTlsInsecure } from "../config.js";
 import {
   canonicalizeEd25519PublicKey,
   encodeEd25519PublicKey,
@@ -127,6 +128,7 @@ async function discoverStandaloneTopology(
     const owners = await listOwnerPubkeys();
     return await discoverTopology({
       client: new MeshClient(opts.relayUrl, {
+        tlsInsecure: isRelayTlsInsecure(),
         ...(opts.meshRequestTimeoutMs !== undefined
           ? { requestTimeoutMs: opts.meshRequestTimeoutMs }
           : {}),

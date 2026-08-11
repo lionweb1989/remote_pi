@@ -1,3 +1,5 @@
+import https from "node:https";
+
 import type { MeshEnvelope } from "./types.js";
 
 export class MeshFetchUnavailableError extends Error {
@@ -11,6 +13,12 @@ export class MeshFetchInvalidResponseError extends Error {
 export interface MeshClientOptions {
   /** Finite deadline covering response headers and body parsing. */
   readonly requestTimeoutMs?: number;
+  /**
+   * Skip TLS certificate verification for the relay connection (plan 59).
+   * Needed when the relay is served by a self-signed cert (self-hosted IP
+   * cert) and the user opted in via `relayTlsInsecure` / env.
+   */
+  readonly tlsInsecure?: boolean;
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
@@ -76,6 +84,7 @@ function decodeStrictBase64(raw: string): Uint8Array {
 export class MeshClient {
   private readonly baseUrl: string;
   private readonly requestTimeoutMs: number;
+  private readonly agent: https.Agent | undefined;
 
   constructor(relayUrl: string, options: MeshClientOptions = {}) {
     const requestTimeoutMs =
@@ -85,6 +94,9 @@ export class MeshClient {
     }
     this.baseUrl = relayUrl.replace(/\/+$/, "");
     this.requestTimeoutMs = requestTimeoutMs;
+    this.agent = options.tlsInsecure
+      ? new https.Agent({ rejectUnauthorized: false })
+      : undefined;
   }
 
   async get(hash: string, since?: number): Promise<MeshEnvelope | null> {
@@ -105,8 +117,18 @@ export class MeshClient {
     try {
       let response: Response;
       try {
+        const init: RequestInit = {
+          method: "GET",
+          signal: controller.signal,
+        };
+        // Node's global fetch (undici) honors the non-standard `agent`
+        // option for custom TLS (https.Agent with rejectUnauthorized).
+        // Cast is needed because lib.dom's RequestInit lacks it.
+        if (this.agent) {
+          (init as RequestInit & { agent?: unknown }).agent = this.agent;
+        }
         response = await Promise.race([
-          fetch(url, { method: "GET", signal: controller.signal }),
+          fetch(url, init),
           aborted,
         ]);
       } catch (error) {

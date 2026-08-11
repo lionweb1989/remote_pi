@@ -14,7 +14,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
  */
 export const kDefaultRelayUrl = "https://relay-rp1.jacobmoura.work";
 
-export type RemotePiConfig = { relay?: string };
+export type RemotePiConfig = { relay?: string; relayTlsInsecure?: boolean };
 
 export function loadConfig(): RemotePiConfig {
   try {
@@ -35,6 +35,26 @@ export function saveConfig(patch: Partial<RemotePiConfig>): void {
 }
 
 export type RelayResolution = { url: string; source: "env" | "config" | "default" };
+
+/**
+ * TLS trust for the relay connection.
+ *
+ * When the relay is served by a **self-signed** certificate (e.g. the
+ * self-hosted relay on 118.145.119.50 with its IP cert — the only
+ * encrypted path on networks where domain SNI is DPI-blocked), the
+ * platform default TLS verification would reject the handshake. Set
+ * `relayTlsInsecure: true` (or env `REMOTE_PI_TLS_INSECURE=1`) to
+ * disable certificate verification for the relay connection only.
+ *
+ * Precedence: env > config.json. Default: false (strict).
+ */
+export function isRelayTlsInsecure(): boolean {
+  const env = process.env["REMOTE_PI_TLS_INSECURE"];
+  if (env !== undefined && env !== "") {
+    return env === "1" || env.toLowerCase() === "true";
+  }
+  return loadConfig().relayTlsInsecure === true;
+}
 
 /**
  * Resolves the effective relay URL in **canonical http(s):// form**.

@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import WebSocket from "ws";
+import { isRelayTlsInsecure } from "../config.js";
 import { ed25519Sign } from "../pairing/crypto.js";
 import type { Ed25519Keypair } from "../pairing/crypto.js";
 
@@ -111,7 +112,13 @@ export class RelayClient extends EventEmitter {
    */
   async connect(options: ConnectOptions = {}): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(this.url);
+      // Plan 59: self-signed relay TLS. When relayTlsInsecure is set the
+      // platform default cert verification is skipped so wss:// works with
+      // the self-hosted relay's IP cert (the only TLS path on DPI-blocked
+      // networks). Default stays strict.
+      const ws = isRelayTlsInsecure()
+        ? new WebSocket(this.url, { rejectUnauthorized: false })
+        : new WebSocket(this.url);
       this.ws = ws;
 
       ws.on("error", (err) => reject(err));

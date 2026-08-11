@@ -121,6 +121,7 @@ import {
   isValidRelayUrl,
   isWebSocketScheme,
   toWebSocketUrl,
+  isRelayTlsInsecure,
 } from "./config.js";
 import { Box, Container, Image, Text } from "@earendil-works/pi-tui";
 
@@ -3029,7 +3030,7 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
     _selfRevokeTopology = null;
     let producer!: SelfRevoke;
     producer = new SelfRevoke({
-      client: new MeshClient(relayUrl),
+      client: new MeshClient(relayUrl, { tlsInsecure: isRelayTlsInsecure() }),
       storage: { snapshotOwnerPubkeys, conditionalRemovePeer },
       myPubkey: edKp.publicKey,
       onRevoke: (rawOwnerPubkey, canonicalOwnerPubkey) => {

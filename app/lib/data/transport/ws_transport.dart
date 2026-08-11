@@ -17,6 +17,7 @@ import 'dart:convert';
 
 import 'package:app/data/transport/channel.dart';
 import 'package:app/data/transport/relay_config.dart';
+import 'package:app/data/transport/relay_tls.dart';
 import 'package:app/protocol/protocol.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
@@ -58,6 +59,10 @@ class WsTransport implements PeerTransport, IControlLink {
     // ws(s) on the wire — IOWebSocketChannel rejects http schemes.
     final WebSocketChannel ws = IOWebSocketChannel.connect(
       Uri.parse(toWsRelayUrl(relayUrl)),
+      // Trust the self-signed IP cert of the self-hosted relay via the
+      // pinned-fingerprint client (plan 59). Other hosts/certs keep strict
+      // default validation.
+      customClient: relayPinnedHttpClient(),
       pingInterval: const Duration(seconds: 20),
     );
     final transport = WsTransport._(ws);
