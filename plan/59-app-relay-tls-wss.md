@@ -97,11 +97,15 @@ Fingerprint SHA-256 do cert (`openssl x509 -fingerprint -sha256`):
 
 ## Definition of Done
 
-- [ ] app: pin do cert em WS + REST, analyze/test verdes
-- [ ] pi-extension: flag tls insecure, typecheck/test verdes
-- [ ] config runtime aplicada nos dois clientes
-- [ ] APK novo instalado no celular e conectado via wss no relay
-- [ ] Mensagem real app↔Pi trafegando com TLS (sem queda p/ http)
+- [x] app: pin do cert em WS + REST, analyze/test verdes
+- [x] pi-extension: flag tls insecure, typecheck/test verdes
+- [x] config runtime aplicada nos dois clientes
+- [x] APK novo instalado no celular e conectado via wss no relay
+- [x] Mensagem real app↔Pi trafegando com TLS (sem queda p/ http)
+  - 2026-08-11: verificado no servidor — 2 conexões ativas em :8443
+    (Caddy TLS, IP do usuário), 0 em :8788 direto (sem plaintext)
+  - Pi: pi-extension 0.6.0 local (pi install C:/Apps/remote_pi/pi-extension),
+    `npm:remote-pi` removido; config com `relayTlsInsecure: true`
 
 ## Próximos planos
 
