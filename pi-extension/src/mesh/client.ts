@@ -1,4 +1,4 @@
-import https from "node:https";
+import { Agent } from "undici";
 
 import type { MeshEnvelope } from "./types.js";
 
@@ -84,7 +84,7 @@ function decodeStrictBase64(raw: string): Uint8Array {
 export class MeshClient {
   private readonly baseUrl: string;
   private readonly requestTimeoutMs: number;
-  private readonly agent: https.Agent | undefined;
+  private readonly dispatcher: Agent | undefined;
 
   constructor(relayUrl: string, options: MeshClientOptions = {}) {
     const requestTimeoutMs =
@@ -94,8 +94,10 @@ export class MeshClient {
     }
     this.baseUrl = relayUrl.replace(/\/+$/, "");
     this.requestTimeoutMs = requestTimeoutMs;
-    this.agent = options.tlsInsecure
-      ? new https.Agent({ rejectUnauthorized: false })
+    // Plan 59: undici Agent that skips cert verification is passed as
+    // `dispatcher` — Node's global fetch honors `dispatcher`, not `agent`.
+    this.dispatcher = options.tlsInsecure
+      ? new Agent({ connect: { rejectUnauthorized: false } })
       : undefined;
   }
 
@@ -121,11 +123,11 @@ export class MeshClient {
           method: "GET",
           signal: controller.signal,
         };
-        // Node's global fetch (undici) honors the non-standard `agent`
-        // option for custom TLS (https.Agent with rejectUnauthorized).
-        // Cast is needed because lib.dom's RequestInit lacks it.
-        if (this.agent) {
-          (init as RequestInit & { agent?: unknown }).agent = this.agent;
+        // Node's global fetch (undici) honors `dispatcher` for custom TLS.
+        // Cast is needed because lib.dom's RequestInit lacks the field.
+        if (this.dispatcher) {
+          (init as RequestInit & { dispatcher?: unknown }).dispatcher =
+            this.dispatcher;
         }
         response = await Promise.race([
           fetch(url, init),
