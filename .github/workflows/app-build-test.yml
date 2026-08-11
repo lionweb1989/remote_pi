@@ -1,0 +1,50 @@
+# Build de teste do app (Android) — SEM keystore/secrets.
+#
+# Objetivo: gerar um APK debug instalável para testes, sem depender do
+# ANDROID_KEYSTORE (que só existe no repo canônico / CI de release).
+# Uso: habilitar Actions no repo (Settings → Actions) e disparar por
+# workflow_dispatch, ou por push na main. O APK sai como artifact.
+
+name: app-build-test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.44.4"
+
+jobs:
+  android:
+    name: APK debug
+    runs-on: ubuntu-24.04
+    defaults: { run: { working-directory: app } }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Build APK debug
+        run: |
+          flutter pub get
+          flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
